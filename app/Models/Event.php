@@ -31,6 +31,11 @@ class Event extends Model
 
     public const MESSAGE_APPROVED = 'message.approved';
 
+    // Sprint 4: queue + send over email / SMS.
+    public const MESSAGE_SENT = 'message.sent';
+
+    public const MESSAGE_SEND_FAILED = 'message.send_failed';
+
     // Sprint 2: Stripe payment lifecycle.
     public const PAYMENT_LINK_CREATED = 'payment.link_created';
 

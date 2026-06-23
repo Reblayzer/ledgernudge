@@ -26,6 +26,7 @@ class Message extends Model
         'model',
         'input_tokens',
         'output_tokens',
+        'sequence_step',
     ];
 
     protected function casts(): array
@@ -36,6 +37,7 @@ class Message extends Model
             'status' => MessageStatus::class,
             'input_tokens' => 'integer',
             'output_tokens' => 'integer',
+            'sequence_step' => 'integer',
         ];
     }
 

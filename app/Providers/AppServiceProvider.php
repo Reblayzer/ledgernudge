@@ -5,8 +5,12 @@ namespace App\Providers;
 use Anthropic\Client as AnthropicClient;
 use App\Services\Claude\AnthropicMessenger;
 use App\Services\Claude\Contracts\ClaudeMessenger;
+use App\Services\Sending\Contracts\SmsGateway;
+use App\Services\Sending\TwilioSmsGateway;
 use App\Services\Stripe\Contracts\CheckoutGateway;
 use App\Services\Stripe\StripeCheckoutGateway;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Stripe\StripeClient;
 
@@ -28,6 +32,12 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->bind(ClaudeMessenger::class, AnthropicMessenger::class);
+
+        $this->app->bind(SmsGateway::class, fn () => new TwilioSmsGateway(
+            sid: config('services.twilio.sid'),
+            token: config('services.twilio.token'),
+            from: config('services.twilio.from'),
+        ));
     }
 
     /**
@@ -35,6 +45,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Basic queue rate limiting for the send pipeline.
+        RateLimiter::for('dunning-sends', fn () => Limit::perMinute(60));
     }
 }

@@ -4,16 +4,25 @@ namespace Tests\Feature\Dunning;
 
 use App\Enums\MessageDirection;
 use App\Enums\MessageStatus;
+use App\Jobs\SendMessage;
 use App\Models\Event;
 use App\Models\Invoice;
 use App\Models\Message;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class MessageApprovalTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Sending is queued; fake it so approval doesn't actually deliver here.
+        Queue::fake();
+    }
 
     private function pendingDraft(): Message
     {
@@ -63,15 +72,29 @@ class MessageApprovalTest extends TestCase
         ]);
     }
 
-    public function test_v1_never_auto_sends_a_message(): void
+    public function test_approving_enqueues_exactly_one_send(): void
     {
         $message = $this->pendingDraft();
 
         $this->actingAs(User::factory()->create())
             ->post("/messages/{$message->id}/approve");
 
-        // Approval is the terminal state in v1 — nothing is ever marked Sent here.
-        $this->assertSame(0, Message::where('status', MessageStatus::Sent)->count());
+        // A human approval is what authorizes sending — never an auto-send.
+        Queue::assertPushed(
+            SendMessage::class,
+            fn (SendMessage $job) => $job->message->is($message),
+        );
+        Queue::assertPushed(SendMessage::class, 1);
+    }
+
+    public function test_editing_a_draft_does_not_enqueue_a_send(): void
+    {
+        $message = $this->pendingDraft();
+
+        $this->actingAs(User::factory()->create())
+            ->patch("/messages/{$message->id}", ['body' => 'Edited copy.']);
+
+        Queue::assertNotPushed(SendMessage::class);
     }
 
     public function test_approval_and_editing_require_authentication(): void

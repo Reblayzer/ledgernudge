@@ -22,9 +22,9 @@ The product thinking and full sprint plan live in
 | Backend    | Laravel 12 (PHP 8.3)                                          |
 | Frontend   | React 19 + TypeScript via **Inertia** (Laravel React starter kit) |
 | Database   | PostgreSQL 16                                                 |
-| Queue/cache| Redis 7 (queue lands in Sprint 4)                             |
+| Queue/cache| Redis 7 — queue drives the send pipeline ✅                    |
 | Payments   | Stripe (Checkout payment links + webhook reconciliation) ✅   |
-| Messaging  | Twilio SMS + Laravel mailer — Sprint 4                        |
+| Messaging  | Twilio SMS + Laravel mailer ✅                                 |
 | AI         | Anthropic Claude — dunning drafts ✅ (reply classification — Sprint 5) |
 
 ### Why Inertia + React (not a separate SPA)
@@ -157,6 +157,33 @@ Design notes:
   `clients` table. A `ClaudeMessenger` seam keeps the drafting logic unit-tested
   with an in-memory fake — no live API calls in the test suite.
 
+## The send pipeline (Redis queue + sequence worker)
+
+A scheduled command walks the dunning sequence; approved messages go out over a
+Redis-backed queue.
+
+- **`dunning:advance`** (scheduled daily) walks past-due, still-outstanding
+  invoices, works out the due step by days overdue (**day 0 / 7 / 14**), and
+  enqueues a `DraftDunningMessage` job for that step — at most once per step. The
+  draft goes to a human for approval (Sprint 3); it is **not** sent automatically.
+- **Approving** a message enqueues a `SendMessage` job. Human approval is what
+  authorizes delivery — there is still no auto-send.
+- **`SendMessage`** delivers over the message's channel: email (Laravel mailer)
+  or **Twilio SMS** (behind an `SmsGateway` seam). It marks the message `sent` or
+  `failed` and writes a `message.sent` / `message.send_failed` event. The job is
+  **rate-limited** (`dunning-sends`, 60/min) and re-checks the message is still
+  `approved` at run time, so nothing is double-sent.
+
+Run the worker alongside the app:
+
+```bash
+php artisan queue:work          # process the send/draft jobs
+php artisan schedule:work       # or rely on cron to run dunning:advance daily
+```
+
+Tests use the `sync`/`array` queue and `Mail::fake()` + a fake `SmsGateway`, so
+the whole pipeline is covered without Redis, a mail server, or Twilio.
+
 ## What's built vs. stubbed
 
 This is built one sprint per commit. **Inspectable and honest beats
@@ -174,7 +201,10 @@ feature-complete and vague.**
       Claude drafts each message from invoice + debtor + tone policy; operator
       edits/approves; never auto-sends; prompts version-controlled; token usage
       logged. Covered by tests with an in-memory Claude fake.
-- [ ] **Sprint 4** — Redis queue + scheduled sequence worker + email/SMS sending.
+- [x] **Sprint 4 — Redis queue + scheduled sequence worker + email/SMS sending.**
+      `dunning:advance` enqueues the next due step (day 0/7/14); approval queues a
+      rate-limited `SendMessage` that delivers via email or Twilio SMS and logs
+      `message.sent`/`message.send_failed`. Covered by tests (fake mail + SMS).
 - [ ] **Sprint 5** — inbound reply capture + Claude classification + dispute pause.
 - [ ] **Sprint 6** — React operator inbox + event-log view.
 - [ ] **Sprint 7** — architecture diagram, one-command demo, design notes.

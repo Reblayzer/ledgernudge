@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\MessageStatus;
+use App\Jobs\SendMessage;
 use App\Models\Event;
 use App\Models\Message;
 use Illuminate\Http\RedirectResponse;
@@ -34,7 +35,11 @@ class MessageApprovalController extends Controller
         return back();
     }
 
-    /** Approve a pending draft. Idempotent: approving anything else is a no-op. */
+    /**
+     * Approve a pending draft and queue it for delivery. The human approval is
+     * what authorizes sending — v1 never sends without it. Idempotent: approving
+     * anything not pending is a no-op.
+     */
     public function approve(Request $request, Message $message): RedirectResponse
     {
         if ($message->status === MessageStatus::PendingApproval) {
@@ -47,6 +52,8 @@ class MessageApprovalController extends Controller
                 'user_id' => $request->user()->id,
                 'type' => Event::MESSAGE_APPROVED,
             ]);
+
+            SendMessage::dispatch($message);
         }
 
         return back();
