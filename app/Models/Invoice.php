@@ -24,6 +24,9 @@ class Invoice extends Model
         'due_date',
         'status',
         'paid_at',
+        'stripe_checkout_session_id',
+        'stripe_payment_intent_id',
+        'payment_url',
     ];
 
     protected function casts(): array

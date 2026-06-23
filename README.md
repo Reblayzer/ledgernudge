@@ -23,7 +23,7 @@ The product thinking and full sprint plan live in
 | Frontend   | React 19 + TypeScript via **Inertia** (Laravel React starter kit) |
 | Database   | PostgreSQL 16                                                 |
 | Queue/cache| Redis 7 (queue lands in Sprint 4)                             |
-| Payments   | Stripe (payment links + webhook reconciliation) — Sprint 2   |
+| Payments   | Stripe (Checkout payment links + webhook reconciliation) ✅   |
 | Messaging  | Twilio SMS + Laravel mailer — Sprint 4                        |
 | AI         | Anthropic Claude (drafting + reply classification) — Sprint 3/5 |
 
@@ -94,6 +94,43 @@ Five tables underpin the whole flow:
   row and rows are never updated or deleted, so the table carries only
   `created_at`. This is what lets an operator see exactly what was sent and why.
 
+## Payments (Stripe)
+
+Each invoice gets a hosted **Stripe Checkout** payment link, and Stripe webhooks
+reconcile the result back onto the invoice.
+
+- `POST /invoices/{invoice}/payment-link` (operator-only) creates a Checkout
+  Session for the invoice amount, stamping `invoice_id` into both the session and
+  the PaymentIntent metadata, and stores the hosted URL on the invoice.
+- `POST /stripe/webhook` (stateless, CSRF-exempt, **verified by Stripe
+  signature**) handles `checkout.session.completed`, `payment_intent.succeeded`,
+  and `payment_intent.payment_failed`, marking the invoice
+  `paid` / `partial` / `failed` and writing a `payment.*` event.
+
+Two correctness details worth calling out:
+
+- **Idempotency.** Every Stripe event id is recorded in a `stripe_events` table
+  whose primary key is that id, so a duplicate delivery collides on insert and is
+  acknowledged without re-processing. Payment amounts are written *absolutely*
+  (not incremented), so even the two events Stripe sends for one successful
+  Checkout converge to the same state and log a single domain event.
+- **Reconciliation maps back deterministically** via the metadata `invoice_id`,
+  falling back to the stored PaymentIntent id.
+
+### Testing the webhook locally
+
+```bash
+# Forward live Stripe events to the local app (needs a Stripe account + CLI):
+stripe listen --forward-to localhost:8000/stripe/webhook
+# Copy the printed `whsec_...` into STRIPE_WEBHOOK_SECRET in .env, then:
+stripe trigger checkout.session.completed
+```
+
+The automated tests don't need Stripe or the CLI: they post payloads signed with
+the same HMAC scheme Stripe uses, so the real signature verification path runs,
+and they cover the happy path plus invalid-signature and duplicate-delivery
+cases.
+
 ## What's built vs. stubbed
 
 This is built one sprint per commit. **Inspectable and honest beats
@@ -103,7 +140,10 @@ feature-complete and vague.**
       Postgres, seeds a demo dataset; the five tables above with Eloquent models,
       relationships, factories, and seeders; operator auth (login / register /
       settings) from the official starter kit. Covered by tests.
-- [ ] **Sprint 2** — Stripe payment links + webhook reconciliation.
+- [x] **Sprint 2 — Stripe payment links + webhook reconciliation.** Checkout
+      Session per invoice; signature-verified webhook marks invoices
+      paid/partial/failed and logs `payment.*` events; idempotent against
+      duplicate deliveries. Covered by tests (incl. bad signature + duplicates).
 - [ ] **Sprint 3** — Claude drafting service + human-in-the-loop approval.
 - [ ] **Sprint 4** — Redis queue + scheduled sequence worker + email/SMS sending.
 - [ ] **Sprint 5** — inbound reply capture + Claude classification + dispute pause.

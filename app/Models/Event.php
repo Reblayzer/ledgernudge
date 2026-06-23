@@ -19,10 +19,19 @@ class Event extends Model
 
     public const UPDATED_AT = null;
 
-    // Sprint 1 vocabulary; later sprints add payment.*, message.*, reply.* types.
+    // Sprint 1 vocabulary; later sprints add message.*, reply.* types.
     public const INVOICE_CREATED = 'invoice.created';
 
     public const DEBTOR_IMPORTED = 'debtor.imported';
+
+    // Sprint 2: Stripe payment lifecycle.
+    public const PAYMENT_LINK_CREATED = 'payment.link_created';
+
+    public const PAYMENT_SUCCEEDED = 'payment.succeeded';
+
+    public const PAYMENT_PARTIAL = 'payment.partial';
+
+    public const PAYMENT_FAILED = 'payment.failed';
 
     protected $fillable = [
         'debtor_id',
