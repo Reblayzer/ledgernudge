@@ -1,0 +1,34 @@
+# Local datastores for LedgerNudge. Keeps Postgres + Redis off the host.
+#   docker compose up -d
+# Credentials here are for local development only and match .env.example.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ledgernudge-postgres
+    environment:
+      POSTGRES_DB: ledgernudge
+      POSTGRES_USER: ledgernudge
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledgernudge -d ledgernudge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ledgernudge-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
