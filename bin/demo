@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#
+# One-command LedgerNudge demo: brings up Postgres + Redis, installs deps if
+# needed, builds the frontend, and seeds a full-loop dataset. No API keys
+# required — the seeded story (draft to approve, a paid invoice, an inbound
+# dispute that paused the sequence) is built offline.
+#
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+command -v docker >/dev/null 2>&1 || { echo "Docker is required (docker compose up brings up Postgres + Redis)."; exit 1; }
+
+[ -d vendor ] || composer install
+[ -d node_modules ] || npm install
+
+if [ ! -f .env ]; then
+    cp .env.example .env
+    php artisan key:generate
+fi
+
+echo "==> Starting Postgres + Redis"
+docker compose up -d
+
+echo "==> Waiting for Postgres to be healthy"
+for _ in $(seq 1 30); do
+    status="$(docker inspect --format '{{.State.Health.Status}}' ledgernudge-postgres 2>/dev/null || echo starting)"
+    [ "$status" = "healthy" ] && break
+    sleep 2
+done
+
+echo "==> Migrating + seeding the demo dataset"
+php artisan migrate:fresh --seed
+
+echo "==> Building the frontend"
+npm run build
+
+cat <<'MSG'
+
+LedgerNudge demo is ready.
+
+  Login:   operator@ledgernudge.test  /  password
+  Start:   composer run dev      (Laravel + Vite + queue together)
+  Open:    http://localhost:8000/inbox
+
+The inbox opens on a paused (disputed) debtor, a draft awaiting approval,
+and a paid invoice — the whole loop, seeded offline.
+MSG

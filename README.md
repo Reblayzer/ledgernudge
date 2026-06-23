@@ -37,6 +37,47 @@ backend in one deployable. The trade-off is a smaller standalone REST surface;
 the Stripe and Twilio webhooks are still plain stateless routes, so the
 machine-to-machine surface is still exercised.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph UI["React + TS operator inbox (Inertia)"]
+        INBOX["/inbox · threaded view + event log"]
+    end
+
+    subgraph APP["Laravel app"]
+        SCHED["dunning:advance (scheduled)"]
+        QUEUE["Redis queue"]
+        DRAFT["DunningDraftService"]
+        SEND["MessageSender"]
+        RECON["WebhookReconciler"]
+        REPLY["InboundReplyService"]
+        DB[("PostgreSQL<br/>debtors · invoices<br/>messages · events")]
+    end
+
+    CLAUDE["Anthropic Claude"]
+    STRIPE["Stripe"]
+    TWILIO["Twilio + email"]
+
+    SCHED -->|past-due step| QUEUE
+    QUEUE -->|draft job| DRAFT
+    DRAFT <-->|message draft| CLAUDE
+    DRAFT -->|pending_approval| DB
+    INBOX -->|approve| QUEUE
+    QUEUE -->|send job| SEND
+    SEND -->|email / SMS| TWILIO
+    INBOX -->|create link| STRIPE
+    STRIPE -->|webhook| RECON --> DB
+    TWILIO -->|inbound reply| REPLY
+    REPLY <-->|classify| CLAUDE
+    REPLY -->|dispute pauses sequence| DB
+    DB --> INBOX
+```
+
+Every step writes to the append-only `events` log, so the inbox shows exactly
+what was sent and why. Design rationale and the Laravel traps I hit are in
+[`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md).
+
 ## Project layout
 
 The Laravel app lives at the **repository root** (not in a subfolder) so a
@@ -47,28 +88,28 @@ reviewer can clone and run it with a single `composer install`. The planning doc
 
 Prerequisites: PHP 8.3, Composer, Node 20+, Docker.
 
+**One command** (brings up Postgres + Redis, installs deps, seeds the full-loop
+demo, builds the frontend — no API keys needed):
+
 ```bash
-# 1. Install dependencies
-composer install
-npm install
+./bin/demo      # or: composer demo
+composer run dev    # then open http://localhost:8000/inbox
+```
 
-# 2. Environment
-cp .env.example .env
-php artisan key:generate
+Or step by step:
 
-# 3. Datastores (Postgres + Redis)
+```bash
+composer install && npm install
+cp .env.example .env && php artisan key:generate
 docker compose up -d
-
-# 4. Schema + demo data
 php artisan migrate --seed
-
-# 5. Run it (Laravel + Vite together)
 composer run dev
 ```
 
-The demo seed creates one operator (`operator@ledgernudge.test` / `password`),
-eight debtors with a mix of open and paid invoices, and an `invoice.created`
-entry in the append-only event log for each invoice.
+The demo seed creates one operator (`operator@ledgernudge.test` / `password`)
+and a story-driven dataset built **offline** (no live Claude/Stripe/Twilio): a
+draft awaiting approval, a paid happy-path invoice, and an inbound dispute that
+paused a debtor — plus the append-only event log behind each.
 
 ### Tests
 
@@ -251,7 +292,10 @@ feature-complete and vague.**
       and `/inbox/{debtor}` threaded view with invoices (status + Stripe link +
       next step), the message thread, the append-only event log, and the
       approve/edit/draft/payment-link actions. Inertia controllers feature-tested.
-- [ ] **Sprint 7** — architecture diagram, one-command demo, design notes.
+- [x] **Sprint 7 — architecture diagram, one-command demo, design notes.**
+      Mermaid architecture diagram (above), `./bin/demo` one-command offline
+      seed, and [`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md) covering the design
+      decisions and the Laravel traps actually hit.
 
 ### Intentionally out of v1
 
