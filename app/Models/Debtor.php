@@ -18,6 +18,7 @@ class Debtor extends Model
         'email',
         'phone',
         'external_ref',
+        'tone_policy',
     ];
 
     /** @return HasMany<Invoice> */

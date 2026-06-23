@@ -25,7 +25,7 @@ The product thinking and full sprint plan live in
 | Queue/cache| Redis 7 (queue lands in Sprint 4)                             |
 | Payments   | Stripe (Checkout payment links + webhook reconciliation) ✅   |
 | Messaging  | Twilio SMS + Laravel mailer — Sprint 4                        |
-| AI         | Anthropic Claude (drafting + reply classification) — Sprint 3/5 |
+| AI         | Anthropic Claude — dunning drafts ✅ (reply classification — Sprint 5) |
 
 ### Why Inertia + React (not a separate SPA)
 
@@ -131,6 +131,32 @@ the same HMAC scheme Stripe uses, so the real signature verification path runs,
 and they cover the happy path plus invalid-signature and duplicate-delivery
 cases.
 
+## Claude drafting + human-in-the-loop approval
+
+Claude drafts each dunning message; a human approves or edits it before anything
+is sent. **v1 never auto-sends** — approval is the terminal state.
+
+- `POST /invoices/{invoice}/draft` builds a prompt from the invoice facts, the
+  debtor, recent message history, and the account's **tone policy**, asks Claude
+  (default model `claude-opus-4-8`, configurable via `ANTHROPIC_MODEL`) for the
+  next message, and saves it as a `pending_approval` message.
+- `PATCH /messages/{message}` lets the operator edit the draft body; the message
+  stays `pending_approval`.
+- `POST /messages/{message}/approve` marks it `approved`. Sending happens in a
+  later sprint, behind the Redis queue — there is no send path in v1.
+
+Design notes:
+
+- **Prompts are version-controlled files** (`resources/prompts/dunning/`), not
+  string literals buried in code, so the wording is reviewable in diffs.
+- **Token usage is logged** — the model and input/output token counts are stored
+  on the message and in a `message.drafted` event, so the cost of each draft is
+  inspectable.
+- The **tone policy is a field, not a rules engine** (a deliberate v1 scope
+  choice). It lives on the debtor; in a multi-tenant build it would move to a
+  `clients` table. A `ClaudeMessenger` seam keeps the drafting logic unit-tested
+  with an in-memory fake — no live API calls in the test suite.
+
 ## What's built vs. stubbed
 
 This is built one sprint per commit. **Inspectable and honest beats
@@ -144,7 +170,10 @@ feature-complete and vague.**
       Session per invoice; signature-verified webhook marks invoices
       paid/partial/failed and logs `payment.*` events; idempotent against
       duplicate deliveries. Covered by tests (incl. bad signature + duplicates).
-- [ ] **Sprint 3** — Claude drafting service + human-in-the-loop approval.
+- [x] **Sprint 3 — Claude drafting service + human-in-the-loop approval.**
+      Claude drafts each message from invoice + debtor + tone policy; operator
+      edits/approves; never auto-sends; prompts version-controlled; token usage
+      logged. Covered by tests with an in-memory Claude fake.
 - [ ] **Sprint 4** — Redis queue + scheduled sequence worker + email/SMS sending.
 - [ ] **Sprint 5** — inbound reply capture + Claude classification + dispute pause.
 - [ ] **Sprint 6** — React operator inbox + event-log view.

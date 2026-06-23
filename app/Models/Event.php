@@ -24,6 +24,13 @@ class Event extends Model
 
     public const DEBTOR_IMPORTED = 'debtor.imported';
 
+    // Sprint 3: Claude drafting + human-in-the-loop approval.
+    public const MESSAGE_DRAFTED = 'message.drafted';
+
+    public const MESSAGE_EDITED = 'message.edited';
+
+    public const MESSAGE_APPROVED = 'message.approved';
+
     // Sprint 2: Stripe payment lifecycle.
     public const PAYMENT_LINK_CREATED = 'payment.link_created';
 

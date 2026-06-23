@@ -23,6 +23,9 @@ class Message extends Model
         'channel',
         'status',
         'body',
+        'model',
+        'input_tokens',
+        'output_tokens',
     ];
 
     protected function casts(): array
@@ -31,6 +34,8 @@ class Message extends Model
             'direction' => MessageDirection::class,
             'channel' => MessageChannel::class,
             'status' => MessageStatus::class,
+            'input_tokens' => 'integer',
+            'output_tokens' => 'integer',
         ];
     }
 
