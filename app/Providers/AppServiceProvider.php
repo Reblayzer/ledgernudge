@@ -5,6 +5,8 @@ namespace App\Providers;
 use Anthropic\Client as AnthropicClient;
 use App\Services\Claude\AnthropicMessenger;
 use App\Services\Claude\Contracts\ClaudeMessenger;
+use App\Services\Inbound\Contracts\InboundSmsVerifier;
+use App\Services\Inbound\TwilioInboundVerifier;
 use App\Services\Sending\Contracts\SmsGateway;
 use App\Services\Sending\TwilioSmsGateway;
 use App\Services\Stripe\Contracts\CheckoutGateway;
@@ -37,6 +39,10 @@ class AppServiceProvider extends ServiceProvider
             sid: config('services.twilio.sid'),
             token: config('services.twilio.token'),
             from: config('services.twilio.from'),
+        ));
+
+        $this->app->bind(InboundSmsVerifier::class, fn () => new TwilioInboundVerifier(
+            authToken: config('services.twilio.token'),
         ));
     }
 

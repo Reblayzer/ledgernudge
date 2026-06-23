@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Inbound\EmailInboundController;
+use App\Http\Controllers\Inbound\TwilioInboundController;
 use App\Http\Controllers\InvoiceDraftController;
 use App\Http\Controllers\MessageApprovalController;
 use App\Http\Controllers\Stripe\PaymentLinkController;
@@ -30,6 +32,11 @@ Route::middleware(['auth'])->group(function () {
 
 // Stateless: authenticated by Stripe signature, not a session. CSRF-exempt in bootstrap/app.php.
 Route::post('stripe/webhook', WebhookController::class)->name('stripe.webhook');
+
+// Inbound replies (stateless, CSRF-exempt). SMS is Twilio-signature-verified;
+// the email route is a simplified inbound-parse endpoint (see controller).
+Route::post('twilio/inbound', TwilioInboundController::class)->name('twilio.inbound');
+Route::post('email/inbound', EmailInboundController::class)->name('email.inbound');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

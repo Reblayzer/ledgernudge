@@ -18,9 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
-        // Stripe signs its webhooks; it cannot present a Laravel CSRF token.
+        // External webhooks can't present a Laravel CSRF token.
         $middleware->validateCsrfTokens(except: [
             'stripe/webhook',
+            'twilio/inbound',
+            'email/inbound',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

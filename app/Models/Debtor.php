@@ -19,7 +19,21 @@ class Debtor extends Model
         'phone',
         'external_ref',
         'tone_policy',
+        'paused_at',
+        'pause_reason',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'paused_at' => 'datetime',
+        ];
+    }
+
+    public function isPaused(): bool
+    {
+        return $this->paused_at !== null;
+    }
 
     /** @return HasMany<Invoice> */
     public function invoices(): HasMany

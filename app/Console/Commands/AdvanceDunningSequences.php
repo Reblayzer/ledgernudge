@@ -29,6 +29,8 @@ class AdvanceDunningSequences extends Command
         Invoice::query()
             ->whereIn('status', [InvoiceStatus::Open->value, InvoiceStatus::Partial->value])
             ->whereDate('due_date', '<=', $today)
+            // Skip debtors whose sequence is paused (a dispute/stop/unknown reply).
+            ->whereHas('debtor', fn ($q) => $q->whereNull('paused_at'))
             ->each(function (Invoice $invoice) use ($today, &$enqueued) {
                 $daysOverdue = $invoice->due_date->startOfDay()->diffInDays($today);
                 $dueStep = $this->dueStep($daysOverdue);

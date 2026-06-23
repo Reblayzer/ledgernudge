@@ -25,7 +25,7 @@ The product thinking and full sprint plan live in
 | Queue/cache| Redis 7 — queue drives the send pipeline ✅                    |
 | Payments   | Stripe (Checkout payment links + webhook reconciliation) ✅   |
 | Messaging  | Twilio SMS + Laravel mailer ✅                                 |
-| AI         | Anthropic Claude — dunning drafts ✅ (reply classification — Sprint 5) |
+| AI         | Anthropic Claude — dunning drafts ✅ + reply classification ✅ |
 
 ### Why Inertia + React (not a separate SPA)
 
@@ -184,6 +184,29 @@ php artisan schedule:work       # or rely on cron to run dunning:advance daily
 Tests use the `sync`/`array` queue and `Mail::fake()` + a fake `SmsGateway`, so
 the whole pipeline is covered without Redis, a mail server, or Twilio.
 
+## Inbound replies → classification → dispute pause
+
+The inbound half of the loop: debtor replies come back in, Claude classifies
+them, and a dispute (or stop, or anything uncertain) **pauses the sequence and
+flags a human**.
+
+- **`POST /twilio/inbound`** — Twilio SMS webhook, **signature-verified**
+  (`X-Twilio-Signature` via Twilio's `RequestValidator`, behind an
+  `InboundSmsVerifier` seam). Matches the sender to a debtor by phone.
+- **`POST /email/inbound`** — a simplified inbound-parse route that accepts
+  `{from, body}` and matches by email. (A production deployment would also verify
+  the mail provider's signature — out of scope for v1.)
+- Each reply is stored as an inbound `received` message and classified by Claude
+  into `dispute` / `promise_to_pay` / `paid` / `stop` / `unknown`. The category
+  and rationale are written to a `reply.classified` event.
+- **Dispute, stop, *and unknown* pause the debtor's sequence** (a `paused_at`
+  timestamp + `sequence.paused` event); `dunning:advance` then skips that debtor.
+  This is the deliberate **bias-toward-pausing**: if the classifier's reply can't
+  be parsed or the category is unrecognised, it falls back to `unknown`, which
+  pauses — better to stop and ask a human than to keep nagging someone who
+  disputed. (The plan calls for pausing on dispute/stop; treating `unknown` as a
+  pause is the safety bias on top of that.)
+
 ## What's built vs. stubbed
 
 This is built one sprint per commit. **Inspectable and honest beats
@@ -205,7 +228,10 @@ feature-complete and vague.**
       `dunning:advance` enqueues the next due step (day 0/7/14); approval queues a
       rate-limited `SendMessage` that delivers via email or Twilio SMS and logs
       `message.sent`/`message.send_failed`. Covered by tests (fake mail + SMS).
-- [ ] **Sprint 5** — inbound reply capture + Claude classification + dispute pause.
+- [x] **Sprint 5 — inbound reply capture + Claude classification + dispute pause.**
+      Signature-verified Twilio SMS webhook + a simple email inbound route; Claude
+      classifies each reply; dispute/stop/unknown pause the debtor's sequence and
+      flag a human (bias toward pausing when unsure). Covered by tests.
 - [ ] **Sprint 6** — React operator inbox + event-log view.
 - [ ] **Sprint 7** — architecture diagram, one-command demo, design notes.
 

@@ -27,6 +27,7 @@ class Message extends Model
         'input_tokens',
         'output_tokens',
         'sequence_step',
+        'classification',
     ];
 
     protected function casts(): array

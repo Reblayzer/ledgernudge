@@ -86,4 +86,14 @@ class SequenceWorkerTest extends TestCase
 
         Queue::assertNotPushed(DraftDunningMessage::class);
     }
+
+    public function test_skips_invoices_whose_debtor_sequence_is_paused(): void
+    {
+        $invoice = $this->invoiceDueDaysAgo(8);
+        $invoice->debtor->update(['paused_at' => now(), 'pause_reason' => 'dispute']);
+
+        $this->artisan('dunning:advance')->assertSuccessful();
+
+        Queue::assertNotPushed(DraftDunningMessage::class);
+    }
 }

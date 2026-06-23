@@ -36,6 +36,13 @@ class Event extends Model
 
     public const MESSAGE_SEND_FAILED = 'message.send_failed';
 
+    // Sprint 5: inbound replies + classification + dispute pause.
+    public const REPLY_RECEIVED = 'reply.received';
+
+    public const REPLY_CLASSIFIED = 'reply.classified';
+
+    public const SEQUENCE_PAUSED = 'sequence.paused';
+
     // Sprint 2: Stripe payment lifecycle.
     public const PAYMENT_LINK_CREATED = 'payment.link_created';
 
