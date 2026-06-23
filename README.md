@@ -207,6 +207,21 @@ flags a human**.
   disputed. (The plan calls for pausing on dispute/stop; treating `unknown` as a
   pause is the safety bias on top of that.)
 
+## Operator inbox (React + TypeScript)
+
+The Inertia/React operator UI ties the loop together in one place:
+
+- **`/inbox`** — a list of debtors with outstanding totals, a "paused" flag when
+  a reply paused the sequence, and a count of drafts waiting for approval.
+- **`/inbox/{debtor}`** — a threaded view per debtor: every invoice with its
+  status, Stripe payment link, and the next scheduled step; the full outbound +
+  inbound message thread (with the reply classification); and the **append-only
+  event log** down the side. The approve / edit / draft / create-payment-link
+  actions are wired here, so an operator can run the whole loop from the page.
+
+The Inertia controllers are covered by feature tests (`assertInertia` on the
+component + props); the React build is exercised in CI (`npm run build`).
+
 ## What's built vs. stubbed
 
 This is built one sprint per commit. **Inspectable and honest beats
@@ -232,7 +247,10 @@ feature-complete and vague.**
       Signature-verified Twilio SMS webhook + a simple email inbound route; Claude
       classifies each reply; dispute/stop/unknown pause the debtor's sequence and
       flag a human (bias toward pausing when unsure). Covered by tests.
-- [ ] **Sprint 6** — React operator inbox + event-log view.
+- [x] **Sprint 6 — React operator inbox + event-log view.** `/inbox` debtor list
+      and `/inbox/{debtor}` threaded view with invoices (status + Stripe link +
+      next step), the message thread, the append-only event log, and the
+      approve/edit/draft/payment-link actions. Inertia controllers feature-tested.
 - [ ] **Sprint 7** — architecture diagram, one-command demo, design notes.
 
 ### Intentionally out of v1

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Inbound\EmailInboundController;
 use App\Http\Controllers\Inbound\TwilioInboundController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InvoiceDraftController;
 use App\Http\Controllers\MessageApprovalController;
 use App\Http\Controllers\Stripe\PaymentLinkController;
@@ -17,6 +18,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
+
+    // Operator inbox: debtor list + threaded view with the event log.
+    Route::get('inbox', [InboxController::class, 'index'])->name('inbox.index');
+    Route::get('inbox/{debtor}', [InboxController::class, 'show'])->name('inbox.show');
 
     Route::post('invoices/{invoice}/payment-link', [PaymentLinkController::class, 'store'])
         ->name('invoices.payment-link.store');
